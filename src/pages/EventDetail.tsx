@@ -56,12 +56,12 @@ export function EventDetail() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-slate-50 pb-4">
       {/* Header */}
-      <div className="bg-green-600 text-white p-4">
+      <div className="bg-white px-4 pt-4 pb-5 border-b border-slate-100 mb-4">
         <button
           onClick={() => navigate("/")}
-          className="flex items-center gap-2 mb-4 hover:text-green-100"
+          className="flex items-center gap-2 mb-4 text-slate-600 hover:text-slate-900"
         >
           <ArrowLeft className="w-5 h-5" />
           <span>Volver</span>
@@ -69,12 +69,12 @@ export function EventDetail() {
 
         <div className="flex items-center gap-3">
           <div className="bg-red-500 p-3 rounded-full">
-            <AlertTriangle className="w-6 h-6" />
+            <AlertTriangle className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1">
-            <h1 className="text-xl mb-1">{event.title}</h1>
+            <h1 className="text-xl mb-1 text-slate-900">{event.title}</h1>
             {event.verified && (
-              <div className="flex items-center gap-1 text-green-100 text-sm">
+              <div className="flex items-center gap-1 text-blue-600 text-sm">
                 <Shield className="w-4 h-4" />
                 <span>Reporte Verificado</span>
               </div>
@@ -86,58 +86,58 @@ export function EventDetail() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Location & Time */}
-        <div className="bg-white rounded-xl shadow-md p-4 border border-green-100">
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
           <div className="flex items-start gap-3 mb-3">
-            <MapPin className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm text-green-500 mb-1">Ubicación</p>
-              <p className="text-green-900">{event.location}</p>
+              <p className="text-sm text-slate-500 mb-1">Ubicación</p>
+              <p className="text-slate-900">{event.location}</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <Clock className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <Clock className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm text-green-500 mb-1">Reportado</p>
-              <p className="text-green-900">{event.time}</p>
+              <p className="text-sm text-slate-500 mb-1">Reportado</p>
+              <p className="text-slate-900">{event.time}</p>
             </div>
           </div>
         </div>
 
         {/* Description */}
-        <div className="bg-white rounded-xl shadow-md p-4 border border-green-100">
-          <h3 className="text-green-900 mb-2">Descripción</h3>
-          <p className="text-green-700">{event.description}</p>
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+          <h3 className="text-slate-900 mb-2">Descripción</h3>
+          <p className="text-slate-600">{event.description}</p>
         </div>
 
         {/* Details */}
-        <div className="bg-white rounded-xl shadow-md p-4 border border-green-100">
-          <h3 className="text-green-900 mb-3">Detalles del Incidente</h3>
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+          <h3 className="text-slate-900 mb-3">Detalles del Incidente</h3>
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-green-600">Severidad</span>
+              <span className="text-slate-600">Severidad</span>
               <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
                 {event.severity}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-green-600">Carriles afectados</span>
-              <span className="text-green-900">{event.affectedLanes}</span>
+              <span className="text-slate-600">Carriles afectados</span>
+              <span className="text-slate-900">{event.affectedLanes}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-green-600">Tiempo estimado</span>
-              <span className="text-green-900">{event.estimatedClearance}</span>
+              <span className="text-slate-600">Tiempo estimado</span>
+              <span className="text-slate-900">{event.estimatedClearance}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-green-600">Reportado por</span>
-              <span className="text-green-900 text-sm">{event.reportedBy}</span>
+              <span className="text-slate-600">Reportado por</span>
+              <span className="text-slate-900 text-sm">{event.reportedBy}</span>
             </div>
           </div>
         </div>
 
         {/* Voting Section */}
-        <div className="bg-white rounded-xl shadow-md p-4 border border-green-100">
-          <h3 className="text-green-900 mb-3">¿Esta información es precisa?</h3>
-          <p className="text-sm text-green-600 mb-4">
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+          <h3 className="text-slate-900 mb-3">¿Esta información es precisa?</h3>
+          <p className="text-sm text-slate-600 mb-4">
             Tu voto ayuda a validar la información para otros usuarios
           </p>
           <div className="flex gap-3">
@@ -146,8 +146,8 @@ export function EventDetail() {
               variant={userVote === "up" ? "default" : "outline"}
               className={`flex-1 ${
                 userVote === "up"
-                  ? "bg-green-600 hover:bg-green-700 text-white"
-                  : "border-green-300 text-green-700 hover:bg-green-50"
+                  ? "bg-blue-600 hover:bg-blue-700 text-white"
+                  : "border-slate-300 text-slate-700 hover:bg-slate-50"
               }`}
             >
               <ThumbsUp className="w-5 h-5 mr-2" />
@@ -159,7 +159,7 @@ export function EventDetail() {
               className={`flex-1 ${
                 userVote === "down"
                   ? "bg-red-600 hover:bg-red-700 text-white"
-                  : "border-green-300 text-green-700 hover:bg-green-50"
+                  : "border-slate-300 text-slate-700 hover:bg-slate-50"
               }`}
             >
               <ThumbsDown className="w-5 h-5 mr-2" />
@@ -169,36 +169,36 @@ export function EventDetail() {
         </div>
 
         {/* Comments Preview */}
-        <div className="bg-white rounded-xl shadow-md p-4 border border-green-100">
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-green-900">Comentarios</h3>
-            <span className="text-sm text-green-500">8 comentarios</span>
+            <h3 className="text-slate-900">Comentarios</h3>
+            <span className="text-sm text-slate-500">8 comentarios</span>
           </div>
           <div className="space-y-3">
-            <div className="p-3 bg-green-50 rounded-lg">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-6 h-6 bg-green-600 rounded-full"></div>
-                <span className="text-sm text-green-900">Carlos M.</span>
-                <span className="text-xs text-green-500">Hace 5 min</span>
+                <div className="w-6 h-6 bg-blue-600 rounded-full"></div>
+                <span className="text-sm text-slate-900">Carlos M.</span>
+                <span className="text-xs text-slate-500">Hace 5 min</span>
               </div>
-              <p className="text-sm text-green-700">
+              <p className="text-sm text-slate-600">
                 Confirmo, el tráfico está detenido. Vía alterna recomendada.
               </p>
             </div>
-            <div className="p-3 bg-green-50 rounded-lg">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-6 h-6 bg-green-600 rounded-full"></div>
-                <span className="text-sm text-green-900">María L.</span>
-                <span className="text-xs text-green-500">Hace 10 min</span>
+                <div className="w-6 h-6 bg-blue-600 rounded-full"></div>
+                <span className="text-sm text-slate-900">María L.</span>
+                <span className="text-xs text-slate-500">Hace 10 min</span>
               </div>
-              <p className="text-sm text-green-700">
+              <p className="text-sm text-slate-600">
                 Maquinaria trabajando en el sitio
               </p>
             </div>
           </div>
           <Button
             variant="outline"
-            className="w-full mt-3 border-green-300 text-green-700 hover:bg-green-50"
+            className="w-full mt-3 border-slate-300 text-slate-700 hover:bg-slate-50"
           >
             <MessageCircle className="w-4 h-4 mr-2" />
             Ver todos los comentarios
@@ -209,7 +209,7 @@ export function EventDetail() {
         <div className="flex gap-3">
           <Button
             variant="outline"
-            className="flex-1 border-green-300 text-green-700 hover:bg-green-50"
+            className="flex-1 border-slate-300 text-slate-700 hover:bg-slate-50"
           >
             <Share2 className="w-4 h-4 mr-2" />
             Compartir
