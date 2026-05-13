@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { MapLocationPickerDialog } from "../components/MapLocationPickerDialog";
+import { createReport } from "../services/reportApi";
 import {
   AlertTriangle,
   Car,
@@ -24,14 +25,78 @@ export function CreateReport() {
   const [description, setDescription] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
-  const [selectedCoordinates, setSelectedCoordinates] = useState<LatLng | null>(null);
+  const [selectedCoordinates, setSelectedCoordinates] = useState<LatLng | null>(
+    null,
+  );
+  const [deviceCoordinates, setDeviceCoordinates] = useState<LatLng | null>(
+    null,
+  );
+  const [roadBlocked, setRoadBlocked] = useState(false);
+  const [authoritiesPresent, setAuthoritiesPresent] = useState(false);
+  const [emergencySituation, setEmergencySituation] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setDeviceCoordinates([coords.latitude, coords.longitude]);
+      },
+      () => {
+        // Ignore errors; user can pick a location manually.
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => {
-      navigate("/");
-    }, 2000);
+    if (!selectedType || !location || description.length < 20) {
+      return;
+    }
+
+    const coordinates = selectedCoordinates ?? deviceCoordinates;
+    if (!coordinates) {
+      setErrorMessage(
+        "Permite la ubicación o selecciona un punto en el mapa para continuar.",
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      await createReport({
+        incidentType: selectedType,
+        location,
+        latitude: coordinates[0],
+        longitude: coordinates[1],
+        description,
+        photo: photoFile,
+        roadBlocked,
+        authoritiesPresent,
+        emergencySituation,
+      });
+
+      setSubmitted(true);
+      setTimeout(() => {
+        navigate("/", { state: { refreshReports: true } });
+      }, 2000);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No fue posible enviar el reporte.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const openMapPicker = () => {
@@ -65,6 +130,11 @@ export function CreateReport() {
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {errorMessage ? (
+          <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {errorMessage}
+          </div>
+        ) : null}
         {/* Event Type Selection */}
         <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
           <Label className="text-slate-900 mb-3 block">
@@ -99,7 +169,9 @@ export function CreateReport() {
             >
               <Car
                 className={`w-8 h-8 mx-auto mb-2 ${
-                  selectedType === "trafico" ? "text-amber-500" : "text-slate-400"
+                  selectedType === "trafico"
+                    ? "text-amber-500"
+                    : "text-slate-400"
                 }`}
               />
               <span className="text-sm text-slate-900">Tráfico</span>
@@ -172,15 +244,28 @@ export function CreateReport() {
         {/* Photo Upload */}
         <div className="space-y-2 bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
           <Label className="text-slate-900">Fotografía (Opcional)</Label>
-          <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center bg-white hover:bg-slate-50 transition-colors cursor-pointer">
+          <input
+            id="report-photo"
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={(event) => {
+              const [file] = event.target.files ?? [];
+              setPhotoFile(file ?? null);
+            }}
+          />
+          <label
+            htmlFor="report-photo"
+            className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center bg-white hover:bg-slate-50 transition-colors cursor-pointer block"
+          >
             <Camera className="w-10 h-10 text-slate-400 mx-auto mb-2" />
             <p className="text-sm text-slate-600 mb-1">
-              Toca para agregar una foto
+              {photoFile ? photoFile.name : "Toca para agregar una foto"}
             </p>
             <p className="text-xs text-slate-500">
               Las fotos ayudan a verificar el reporte
             </p>
-          </div>
+          </label>
         </div>
 
         {/* Additional Info */}
@@ -191,6 +276,8 @@ export function CreateReport() {
               <input
                 type="checkbox"
                 className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                checked={roadBlocked}
+                onChange={(event) => setRoadBlocked(event.target.checked)}
               />
               Vía completamente bloqueada
             </label>
@@ -198,6 +285,10 @@ export function CreateReport() {
               <input
                 type="checkbox"
                 className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                checked={authoritiesPresent}
+                onChange={(event) =>
+                  setAuthoritiesPresent(event.target.checked)
+                }
               />
               Presencia de autoridades
             </label>
@@ -205,6 +296,10 @@ export function CreateReport() {
               <input
                 type="checkbox"
                 className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                checked={emergencySituation}
+                onChange={(event) =>
+                  setEmergencySituation(event.target.checked)
+                }
               />
               Situación de emergencia
             </label>
@@ -214,10 +309,15 @@ export function CreateReport() {
         {/* Submit Button */}
         <Button
           type="submit"
-          disabled={!selectedType || !location || description.length < 20}
+          disabled={
+            !selectedType ||
+            !location ||
+            description.length < 20 ||
+            isSubmitting
+          }
           className="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 disabled:bg-slate-300 disabled:cursor-not-allowed"
         >
-          Enviar Reporte
+          {isSubmitting ? "Enviando..." : "Enviar Reporte"}
         </Button>
 
         <p className="text-xs text-center text-slate-500">

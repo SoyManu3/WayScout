@@ -1,3 +1,5 @@
+import { buildApiUrl } from "./apiBase";
+
 export interface CurrentWeather {
   city: string;
   region: string;
@@ -33,7 +35,9 @@ export async function getCurrentWeatherByCoordinates(
 ): Promise<CurrentWeather> {
   const location = `${latitude},${longitude}`;
   const response = await fetch(
-    `/api/weather/current?location=${encodeURIComponent(location)}`,
+    buildApiUrl(
+      `/api/weather/current?location=${encodeURIComponent(location)}`,
+    ),
   );
 
   if (!response.ok) {
@@ -49,11 +53,15 @@ export async function getNext24HoursWeatherByCoordinates(
 ): Promise<Next24HoursWeather> {
   const location = `${latitude},${longitude}`;
   const response = await fetch(
-    `/api/weather/next24h?location=${encodeURIComponent(location)}`,
+    buildApiUrl(
+      `/api/weather/next24h?location=${encodeURIComponent(location)}`,
+    ),
   );
 
   if (!response.ok) {
-    throw new Error("No se pudo obtener el pronostico de las proximas 24 horas.");
+    throw new Error(
+      "No se pudo obtener el pronostico de las proximas 24 horas.",
+    );
   }
 
   return (await response.json()) as Next24HoursWeather;

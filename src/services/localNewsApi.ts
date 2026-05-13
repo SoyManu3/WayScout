@@ -1,3 +1,5 @@
+import { buildApiUrl } from "./apiBase";
+
 export interface LocalNewsItem {
   id: string;
   title: string;
@@ -20,7 +22,9 @@ export async function getLocalNews(
     limit: String(limit),
   });
 
-  const response = await fetch(`/api/local-news?${searchParams.toString()}`);
+  const response = await fetch(
+    buildApiUrl(`/api/local-news?${searchParams.toString()}`),
+  );
 
   if (!response.ok) {
     throw new Error("No se pudieron obtener las noticias locales.");

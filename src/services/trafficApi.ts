@@ -1,3 +1,5 @@
+import { buildApiUrl } from "./apiBase";
+
 export interface TrafficRoute {
   travelMode: string;
   routeLengthMeters: number;
@@ -23,12 +25,17 @@ export async function getRouteTraffic(params: {
     travelMode: params.travelMode,
   });
 
-  const response = await fetch(`/api/traffic/route?${searchParams.toString()}`);
+  const response = await fetch(
+    buildApiUrl(`/api/traffic/route?${searchParams.toString()}`),
+  );
 
   if (!response.ok) {
     let detail = "No se pudo obtener el trafico de la ruta.";
     try {
-      const errorPayload = (await response.json()) as { detail?: string; message?: string };
+      const errorPayload = (await response.json()) as {
+        detail?: string;
+        message?: string;
+      };
       detail = errorPayload.detail ?? errorPayload.message ?? detail;
     } catch {
       // Mantener mensaje por defecto si el backend no devolvio JSON.

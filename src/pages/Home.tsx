@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Badge } from "../components/ui/badge";
 import {
   getCurrentWeatherByCoordinates,
@@ -7,6 +7,7 @@ import {
   type CurrentWeather,
   type HourlyForecast,
 } from "../services/weatherApi";
+import { getReports, type Report } from "../services/reportApi";
 import { getLocalNews, type LocalNewsItem } from "../services/localNewsApi";
 import { getDeviceLocality } from "../services/locationApi";
 import {
@@ -22,6 +23,9 @@ import {
   TrendingUp,
   LoaderCircle,
   Newspaper,
+  Filter,
+  Radar,
+  ChevronRight,
 } from "lucide-react";
 
 type EventType = "deslave" | "trafico" | "clima" | "noticia";
@@ -33,6 +37,7 @@ interface Event {
   title: string;
   location: string;
   time: string;
+  createdAt: string;
   source: EventSource;
   verified: boolean;
   votes: { up: number; down: number };
@@ -40,55 +45,10 @@ interface Event {
   url?: string;
 }
 
-const mockEvents: Event[] = [
-  {
-    id: "1",
-    type: "deslave",
-    title: "Deslave en Autopista Norte",
-    location: "Km 45, Autopista Norte",
-    time: "Hace 15 min",
-    source: "verified",
-    verified: true,
-    votes: { up: 124, down: 3 },
-    description: "Carril izquierdo bloqueado por derrumbe",
-  },
-  {
-    id: "2",
-    type: "trafico",
-    title: "Tráfico Pesado",
-    location: "Av. Principal, Centro",
-    time: "Hace 30 min",
-    source: "user",
-    verified: false,
-    votes: { up: 45, down: 2 },
-    description: "Congestión vehicular por accidente",
-  },
-  {
-    id: "3",
-    type: "clima",
-    title: "Lluvia Intensa",
-    location: "Zona Sur",
-    time: "Hace 45 min",
-    source: "verified",
-    verified: true,
-    votes: { up: 89, down: 1 },
-    description: "Visibilidad reducida y calzada resbaladiza",
-  },
-  {
-    id: "4",
-    type: "deslave",
-    title: "Vía Obstruida",
-    location: "Carretera La Montaña",
-    time: "Hace 1 hora",
-    source: "user",
-    verified: false,
-    votes: { up: 67, down: 5 },
-    description: "Piedras en la vía, precaución",
-  },
-];
-
 export function Home() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isMountedRef = useRef(true);
   const [filter, setFilter] = useState<"all" | EventType>("all");
   const [currentWeather, setCurrentWeather] = useState<CurrentWeather | null>(
     null,
@@ -96,7 +56,10 @@ export function Home() {
   const [deviceLocality, setDeviceLocality] = useState<string | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherError, setWeatherError] = useState<string | null>(null);
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [coords, setCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [isForecastModalOpen, setIsForecastModalOpen] = useState(false);
   const [next24HoursLoading, setNext24HoursLoading] = useState(false);
   const [next24HoursError, setNext24HoursError] = useState<string | null>(null);
@@ -104,6 +67,16 @@ export function Home() {
   const [localNews, setLocalNews] = useState<LocalNewsItem[]>([]);
   const [localNewsLoading, setLocalNewsLoading] = useState(false);
   const [localNewsError, setLocalNewsError] = useState<string | null>(null);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportsError, setReportsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -213,12 +186,130 @@ export function Home() {
     };
   }, [displayLocality]);
 
+  const refreshReports = useCallback(
+    async (silent = false) => {
+      if (!silent) {
+        setReportsLoading(true);
+        setReportsError(null);
+      }
+
+      try {
+        const data = await getReports(
+          coords
+            ? {
+                limit: 50,
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                radiusKm: 20,
+              }
+            : { limit: 50 },
+        );
+        if (!isMountedRef.current) return;
+        setReports(data);
+        setReportsError(null);
+      } catch {
+        if (!isMountedRef.current) return;
+        if (!silent) {
+          setReportsError("No fue posible cargar los reportes.");
+        }
+      } finally {
+        if (!isMountedRef.current) return;
+        if (!silent) {
+          setReportsLoading(false);
+        }
+      }
+    },
+    [coords],
+  );
+
+  useEffect(() => {
+    refreshReports(false);
+
+    const intervalId = window.setInterval(() => {
+      refreshReports(true);
+    }, 10000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [refreshReports]);
+
+  useEffect(() => {
+    const shouldRefresh = (
+      location.state as { refreshReports?: boolean } | null
+    )?.refreshReports;
+    if (shouldRefresh) {
+      refreshReports(true);
+    }
+  }, [location.state, refreshReports]);
+
+  const mapIncidentType = (incidentType: string): EventType => {
+    switch (incidentType.toLowerCase()) {
+      case "deslave":
+        return "deslave";
+      case "trafico":
+        return "trafico";
+      case "clima":
+        return "clima";
+      default:
+        return "trafico";
+    }
+  };
+
+  const resolveIncidentLabel = (type: EventType) => {
+    switch (type) {
+      case "deslave":
+        return "Deslave";
+      case "trafico":
+        return "Tráfico";
+      case "clima":
+        return "Clima";
+      case "noticia":
+        return "Noticia";
+    }
+  };
+
+  const formatTimeAgo = (isoTime: string) => {
+    const createdAt = new Date(isoTime);
+    if (Number.isNaN(createdAt.getTime())) {
+      return "Hace unos momentos";
+    }
+
+    const now = new Date();
+    const diffMs = now.getTime() - createdAt.getTime();
+    const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
+    if (diffMinutes < 60) {
+      return `Hace ${diffMinutes} min`;
+    }
+
+    const diffHours = Math.round(diffMinutes / 60);
+    if (diffHours < 24) {
+      return `Hace ${diffHours} h`;
+    }
+
+    const diffDays = Math.round(diffHours / 24);
+    return `Hace ${diffDays} dias`;
+  };
+
+  const formatDateTime = (isoTime: string) => {
+    const createdAt = new Date(isoTime);
+    if (Number.isNaN(createdAt.getTime())) {
+      return "Fecha no disponible";
+    }
+
+    return createdAt.toLocaleString("es-MX", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  };
+
   const newsEvents: Event[] = localNews.map((news) => ({
     id: news.id,
     type: news.category === "traffic" ? "trafico" : "noticia",
     title: news.title,
     location: news.location,
     time: news.timeAgo,
+    createdAt: news.publishedAt,
     source: "news",
     verified: true,
     votes: { up: 0, down: 0 },
@@ -230,10 +321,30 @@ export function Home() {
     url: news.url,
   }));
 
-  const allEvents = [...newsEvents, ...mockEvents];
+  const reportEvents: Event[] = reports.map((report) => {
+    const type = mapIncidentType(report.incidentType);
+    const label = resolveIncidentLabel(type);
+
+    return {
+      id: report.id,
+      type,
+      title: `${label} en ${report.location}`,
+      location: report.location,
+      time: formatTimeAgo(report.createdAt),
+      createdAt: report.createdAt,
+      source: "user",
+      verified: false,
+      votes: report.reactions,
+      description: report.description,
+    };
+  });
+
+  const allEvents = [...newsEvents, ...reportEvents];
   const activeEventsCount = allEvents.length;
-  const areaEventsCount = newsEvents.length;
-  const verifiedEventsCount = allEvents.filter((event) => event.verified).length;
+  const areaEventsCount = newsEvents.length + reportEvents.length;
+  const verifiedEventsCount = allEvents.filter(
+    (event) => event.verified,
+  ).length;
 
   const getEventIcon = (type: EventType) => {
     switch (type) {
@@ -301,215 +412,271 @@ export function Home() {
     await loadNext24HoursForecast();
   };
 
+  const filterOptions: { id: "all" | EventType; label: string }[] = [
+    { id: "all", label: "Todas" },
+    { id: "deslave", label: "Deslaves" },
+    { id: "trafico", label: "Tráfico" },
+    { id: "noticia", label: "Noticias" },
+    { id: "clima", label: "Clima" },
+  ];
+
   return (
-    <div className="pb-4">
-      {/* Header - blanco limpio, el azul queda como acento */}
-      <div className="bg-white px-6 pt-6 pb-5 border-b border-slate-100">
-        <div className="flex items-center justify-between mb-5">
+    <div className="h-full overflow-y-auto bg-slate-50 pb-4">
+      <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-6 pt-6 pb-8 text-white">
+        <div className="flex items-start justify-between gap-3 mb-5">
           <div>
-            <h1 className="text-2xl mb-0.5 text-slate-900">WayScout</h1>
-            <p className="text-slate-500 text-sm">Alertas en tu ruta</p>
+            <h1 className="text-2xl mb-1">WayScout</h1>
+            <p className="text-blue-100 text-sm">
+              Alertas en tu ruta y noticias de tu zona.
+            </p>
           </div>
-          <button className="relative p-2.5 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-colors">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
+          <button
+            type="button"
+            className="relative bg-white/15 backdrop-blur-sm rounded-2xl p-2.5 flex-shrink-0 hover:bg-white/25 transition-colors"
+          >
+            <Bell className="w-6 h-6" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-400 rounded-full ring-2 ring-blue-600" />
           </button>
         </div>
 
-        {/* Tarjeta de clima - aquí sí usamos azul de marca con gradiente para darle profundidad */}
+        <div className="grid grid-cols-3 gap-2.5">
+          <div className="bg-white/12 backdrop-blur-sm rounded-xl p-3 border border-white/15">
+            <p className="text-[11px] uppercase tracking-wide text-blue-100 flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" />
+              Activas
+            </p>
+            <p className="text-2xl mt-0.5">{activeEventsCount}</p>
+          </div>
+          <div className="bg-white/12 backdrop-blur-sm rounded-xl p-3 border border-white/15">
+            <p className="text-[11px] uppercase tracking-wide text-blue-100 flex items-center gap-1">
+              <Radar className="w-3 h-3" />
+              En tu área
+            </p>
+            <p className="text-2xl mt-0.5">{areaEventsCount}</p>
+          </div>
+          <div className="bg-white/12 backdrop-blur-sm rounded-xl p-3 border border-white/15">
+            <p className="text-[11px] uppercase tracking-wide text-blue-100 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />
+              Verificadas
+            </p>
+            <p className="text-2xl mt-0.5">{verifiedEventsCount}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 -mt-5 space-y-4">
         <button
           type="button"
           onClick={handleWeatherCardClick}
-          className="w-full text-left bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-2xl p-4 shadow-sm"
+          className="w-full text-left bg-white border border-slate-200 rounded-2xl p-4 shadow-md hover:shadow-lg hover:border-blue-200 transition-all"
         >
           {weatherLoading && (
-            <div className="flex items-center gap-2 text-blue-50 text-sm">
+            <div className="flex items-center gap-2 text-slate-500 text-sm">
               <LoaderCircle className="w-4 h-4 animate-spin" />
-              <span>Obteniendo clima de tu ubicacion...</span>
+              <span>Obteniendo clima de tu ubicación...</span>
             </div>
           )}
 
           {!weatherLoading && weatherError && (
-            <p className="text-sm text-blue-50">{weatherError}</p>
+            <div className="flex items-start gap-3">
+              <div className="bg-amber-100 text-amber-600 rounded-xl p-2.5 flex-shrink-0">
+                <CloudRain className="w-5 h-5" />
+              </div>
+              <p className="text-sm text-slate-600">{weatherError}</p>
+            </div>
           )}
 
           {!weatherLoading && !weatherError && currentWeather && (
-            <div>
-              <p className="text-blue-100 text-xs mb-1 uppercase tracking-wide">
-                Clima actual
-              </p>
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-lg">{displayLocality}</p>
-                  <p className="text-sm text-blue-100">{weatherSubtitle}</p>
+            <div className="flex items-start gap-3">
+              <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-xl p-2.5 flex-shrink-0 shadow-sm">
+                <CloudRain className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                      Clima actual
+                    </p>
+                    <p className="text-base text-slate-900 truncate">
+                      {displayLocality}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {weatherSubtitle}
+                    </p>
+                  </div>
+                  <p className="text-3xl font-light text-slate-900 flex-shrink-0">
+                    {Math.round(currentWeather.temperatureC)}°
+                  </p>
                 </div>
-                <p className="text-4xl font-light">
-                  {Math.round(currentWeather.temperatureC)}°
-                </p>
+                <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500 flex items-center gap-4">
+                  <span>Sens. {Math.round(currentWeather.feelsLikeC)}°</span>
+                  <span>Humedad {currentWeather.humidity}%</span>
+                  <span>Viento {Math.round(currentWeather.windKph)} km/h</span>
+                </div>
               </div>
-              <div className="mt-3 pt-3 border-t border-white/15 text-xs text-blue-100 flex items-center gap-4">
-                <span>Sensacion: {Math.round(currentWeather.feelsLikeC)}°</span>
-                <span>Humedad: {currentWeather.humidity}%</span>
-                <span>Viento: {Math.round(currentWeather.windKph)} km/h</span>
-              </div>
+              <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0 mt-1" />
             </div>
           )}
         </button>
 
-        {/* Stats - neutros con acento de color en el icono */}
-        <div className="grid grid-cols-3 gap-3 mt-4">
-          <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-            <div className="flex items-center justify-center gap-1.5 mb-1">
-              <TrendingUp className="w-4 h-4 text-blue-600" />
-              <span className="text-2xl text-slate-900">{activeEventsCount}</span>
+        <section className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0">
+              <Filter className="w-4 h-4" />
             </div>
-            <p className="text-xs text-slate-500">Activas hoy</p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-            <div className="flex items-center justify-center gap-1.5 mb-1">
-              <MapPin className="w-4 h-4 text-blue-600" />
-              <span className="text-2xl text-slate-900">{areaEventsCount}</span>
+            <div>
+              <h2 className="text-slate-900">Filtrar alertas</h2>
+              <p className="text-xs text-slate-500">Selecciona una categoría</p>
             </div>
-            <p className="text-xs text-slate-500">En tu área</p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-            <div className="flex items-center justify-center gap-1.5 mb-1">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span className="text-2xl text-slate-900">{verifiedEventsCount}</span>
-            </div>
-            <p className="text-xs text-slate-500">Verificadas</p>
+
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {filterOptions.map((option) => {
+              const isActive = filter === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setFilter(option.id)}
+                  className={`px-4 py-2 rounded-full whitespace-nowrap text-sm transition-all ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Filters - activo destaca porque los demás son neutros */}
-      <div className="px-4 py-4">
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${
-              filter === "all"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
-            }`}
-          >
-            Todas
-          </button>
-          <button
-            onClick={() => setFilter("deslave")}
-            className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${
-              filter === "deslave"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
-            }`}
-          >
-            Deslaves
-          </button>
-          <button
-            onClick={() => setFilter("trafico")}
-            className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${
-              filter === "trafico"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
-            }`}
-          >
-            Tráfico
-          </button>
-          <button
-            onClick={() => setFilter("noticia")}
-            className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${
-              filter === "noticia"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
-            }`}
-          >
-            Noticias
-          </button>
-          <button
-            onClick={() => setFilter("clima")}
-            className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${
-              filter === "clima"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
-            }`}
-          >
-            Clima
-          </button>
-        </div>
-      </div>
-
-      {/* Events List - tarjetas neutras, el color solo vive en el icono del tipo */}
-      <div className="px-4 space-y-3">
-        {localNewsLoading && (
-          <div className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white p-4 text-sm text-slate-500">
-            <LoaderCircle className="w-4 h-4 animate-spin" />
-            <span>Analizando noticias locales...</span>
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm uppercase tracking-wide text-slate-500">
+              Eventos recientes
+            </h2>
+            <span className="text-xs text-slate-500 bg-white border border-slate-200 rounded-full px-2.5 py-0.5">
+              {filteredEvents.length}
+            </span>
           </div>
-        )}
 
-        {!localNewsLoading && localNewsError && (
-          <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800">
-            {localNewsError}
-          </div>
-        )}
-
-        {!localNewsLoading && !localNewsError && displayLocality && localNews.length === 0 && (
-          <div className="rounded-xl border border-slate-100 bg-white p-4 text-sm text-slate-500">
-            Sin noticias en su localidad
-          </div>
-        )}
-
-        {filteredEvents.map((event) => (
-          <div
-            key={event.id}
-            onClick={() => handleEventClick(event)}
-            className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 hover:border-slate-200 hover:shadow-md transition-all cursor-pointer"
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className={`${getEventColor(
-                  event.type,
-                )} p-3 rounded-full text-white flex-shrink-0`}
-              >
-                {getEventIcon(event.type)}
+          <div className="space-y-3">
+            {localNewsLoading && (
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm">
+                <LoaderCircle className="w-4 h-4 animate-spin" />
+                <span>Analizando noticias locales...</span>
               </div>
+            )}
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <h3 className="text-slate-900">{event.title}</h3>
-                  {event.verified && (
-                    <Badge className="bg-blue-50 text-blue-700 border border-blue-100 text-xs flex-shrink-0 hover:bg-blue-50">
-                      ✓ Verificado
-                    </Badge>
-                  )}
+            {!localNewsLoading && localNewsError && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
+                {localNewsError}
+              </div>
+            )}
+
+            {!localNewsLoading &&
+              !localNewsError &&
+              displayLocality &&
+              localNews.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-2">
+                    <Newspaper className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm text-slate-700">
+                    Sin noticias en tu localidad
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Te avisaremos cuando aparezca algo relevante.
+                  </p>
                 </div>
+              )}
 
-                <div className="flex items-center gap-1.5 text-sm text-slate-500 mb-2">
-                  <MapPin className="w-4 h-4" />
-                  <span>{event.location}</span>
+            {reportsLoading && (
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm">
+                <LoaderCircle className="w-4 h-4 animate-spin" />
+                <span>Cargando reportes recientes...</span>
+              </div>
+            )}
+
+            {!reportsLoading && reportsError && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
+                {reportsError}
+              </div>
+            )}
+
+            {!reportsLoading && !reportsError && reportEvents.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm">
+                <div className="w-12 h-12 mx-auto rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-2">
+                  <AlertTriangle className="w-6 h-6" />
                 </div>
-
-                <p className="text-sm text-slate-600 mb-3">
-                  {event.description}
+                <p className="text-sm text-slate-700">Sin reportes recientes</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Puedes crear un reporte desde el boton de reportes.
                 </p>
+              </div>
+            )}
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400">{event.time}</span>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1 text-slate-500">
-                      <ThumbsUp className="w-4 h-4" />
-                      <span className="text-sm">{event.votes.up}</span>
+            {filteredEvents.map((event) => (
+              <div
+                key={event.id}
+                onClick={() => handleEventClick(event)}
+                className="bg-white rounded-2xl shadow-sm p-4 border border-slate-200 hover:border-blue-200 hover:shadow-md transition-all cursor-pointer"
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`${getEventColor(
+                      event.type,
+                    )} p-3 rounded-xl text-white flex-shrink-0 shadow-sm`}
+                  >
+                    {getEventIcon(event.type)}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <h3 className="text-slate-900">{event.title}</h3>
+                      {event.verified && (
+                        <Badge className="bg-blue-50 text-blue-700 border border-blue-100 text-xs flex-shrink-0 hover:bg-blue-50">
+                          ✓ Verificado
+                        </Badge>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1 text-slate-400">
-                      <ThumbsDown className="w-4 h-4" />
-                      <span className="text-sm">{event.votes.down}</span>
+
+                    <div className="flex items-center gap-1.5 text-sm text-slate-500 mb-2">
+                      <MapPin className="w-4 h-4" />
+                      <span className="truncate">{event.location}</span>
+                    </div>
+
+                    <p className="text-sm text-slate-600 mb-3">
+                      {event.description}
+                    </p>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col items-end">
+                        <span className="text-xs text-slate-400">
+                          {event.time}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {formatDateTime(event.createdAt)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1 text-slate-500">
+                          <ThumbsUp className="w-4 h-4" />
+                          <span className="text-sm">{event.votes.up}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-slate-400">
+                          <ThumbsDown className="w-4 h-4" />
+                          <span className="text-sm">{event.votes.down}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
-        ))}
+        </section>
       </div>
 
       {isForecastModalOpen && (
@@ -542,23 +709,33 @@ export function Home() {
                 <p className="text-sm text-red-600">{next24HoursError}</p>
               )}
 
-              {!next24HoursLoading && !next24HoursError && next24Hours.length > 0 && (
-                <div className="space-y-2">
-                  {next24Hours.map((hour) => (
-                    <div
-                      key={hour.time}
-                      className="grid grid-cols-[56px_56px_1fr] items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
-                    >
-                      <span className="text-sm text-slate-600">{hour.time.slice(11, 16)}</span>
-                      <span className="text-base text-slate-900">{Math.round(hour.temperatureC)}°</span>
-                      <div className="text-right">
-                        <p className="text-sm text-slate-700 truncate">{hour.condition}</p>
-                        <p className="text-xs text-slate-500">{hour.chanceOfRain}% lluvia</p>
+              {!next24HoursLoading &&
+                !next24HoursError &&
+                next24Hours.length > 0 && (
+                  <div className="space-y-2">
+                    {next24Hours.map((hour) => (
+                      <div
+                        key={hour.time}
+                        className="grid grid-cols-[56px_56px_1fr] items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
+                      >
+                        <span className="text-sm text-slate-600">
+                          {hour.time.slice(11, 16)}
+                        </span>
+                        <span className="text-base text-slate-900">
+                          {Math.round(hour.temperatureC)}°
+                        </span>
+                        <div className="text-right">
+                          <p className="text-sm text-slate-700 truncate">
+                            {hour.condition}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {hour.chanceOfRain}% lluvia
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
             </div>
           </div>
         </div>
