@@ -29,16 +29,17 @@ export interface GeocodedLocation {
 function pickLocality(address?: NominatimAddress): string | null {
   if (!address) return null;
 
-  const locality =
+  // Prefer city/town so the first term matches news headlines.
+  // Suburb/neighbourhood are too specific and never appear in news articles.
+  const primaryLocality =
     address.town ||
     address.city ||
     address.village ||
-    address.suburb ||
-    address.neighbourhood;
+    address.county;
 
-  if (!locality) return null;
+  if (!primaryLocality) return null;
 
-  const locationParts = [locality, address.county, address.state, address.country]
+  const locationParts = [primaryLocality, address.state, address.country]
     .filter((part): part is string => Boolean(part?.trim()))
     .filter((part, index, parts) => parts.indexOf(part) === index);
 
