@@ -75,6 +75,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticating(true);
 
     try {
+      const attemptResponse = await fetch(
+        buildApiUrl("/api/auth/login/attempt"),
+        { method: "POST" },
+      );
+
+      if (!attemptResponse.ok) {
+        let message = "No fue posible iniciar sesion.";
+        const responseText = await attemptResponse.text();
+        try {
+          const body = JSON.parse(responseText) as { message?: string };
+          message = body.message ?? message;
+        } catch (parseError) {
+          void parseError;
+        }
+
+        const error = new Error(message) as Error & { status?: number };
+        error.status = attemptResponse.status;
+        throw error;
+      }
+
       const credentials = await signInWithEmailAndPassword(
         auth,
         email,
