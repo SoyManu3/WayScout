@@ -1,4 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -20,7 +27,11 @@ type AuthContextValue = {
   isLoading: boolean;
   isAuthenticating: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { name: string; email: string; password: string }) => Promise<void>;
+  register: (data: {
+    name: string;
+    email: string;
+    password: string;
+  }) => Promise<void>;
   logout: () => void;
 };
 
@@ -52,8 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: currentUser.uid,
         email: currentUser.email ?? "",
         name:
-          currentUser.displayName ??
-          getFallbackName(currentUser.email ?? ""),
+          currentUser.displayName ?? getFallbackName(currentUser.email ?? ""),
       });
       setIsLoading(false);
     });
@@ -65,7 +75,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticating(true);
 
     try {
-      const credentials = await signInWithEmailAndPassword(auth, email, password);
+      const credentials = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
       const token = await credentials.user.getIdToken();
       const response = await fetch(buildApiUrl("/api/auth/login"), {
         method: "POST",
