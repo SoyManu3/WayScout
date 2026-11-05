@@ -21,9 +21,9 @@ export function RequireAuth() {
 }
 
 export function RedirectIfAuth() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isAuthenticating } = useAuth();
 
-  if (isLoading) {
+  if (isLoading || isAuthenticating) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">
         Cargando...

@@ -7,6 +7,7 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
+import { buildApiUrl } from "../services/apiBase";
 
 type AuthUser = {
   id: string;
@@ -17,6 +18,7 @@ type AuthUser = {
 type AuthContextValue = {
   user: AuthUser | null;
   isLoading: boolean;
+  isAuthenticating: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: { name: string; email: string; password: string }) => Promise<void>;
   logout: () => void;
@@ -36,6 +38,7 @@ const getFallbackName = (email: string) => {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -59,7 +62,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    setIsAuthenticating(true);
+
+    try {
+      const credentials = await signInWithEmailAndPassword(auth, email, password);
+      const token = await credentials.user.getIdToken();
+      const response = await fetch(buildApiUrl("/api/auth/login"), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        let message = "No fue posible iniciar sesion.";
+        const responseText = await response.text();
+        try {
+          const body = JSON.parse(responseText) as { message?: string };
+          message = body.message ?? message;
+        } catch (parseError) {
+          void parseError;
+        }
+
+        const error = new Error(message) as Error & { status?: number };
+        error.status = response.status;
+        throw error;
+      }
+    } catch (error) {
+      await signOut(auth);
+      throw error;
+    } finally {
+      setIsAuthenticating(false);
+    }
   }, []);
 
   const register = useCallback(
@@ -84,8 +118,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, isLoading, login, register, logout }),
-    [user, isLoading, login, register, logout],
+    () => ({ user, isLoading, isAuthenticating, login, register, logout }),
+    [user, isLoading, isAuthenticating, login, register, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
